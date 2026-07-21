@@ -1,34 +1,46 @@
 # Configuration
 
-## Environment variables
+## Deployment env (trello-mcp)
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PORT` | `8000` | HTTP listen port (uvicorn) |
-| `LOG_LEVEL` | `INFO` | Logging level |
-| `TRELLO_HTTP_TIMEOUT_SEC` | `30` | Outbound API timeout |
-| `TRELLO_CREDENTIALS_DIR` | project root | Path jail for `credentials_path` |
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `TRELLO_API_KEY` | Yes | Trello Power-Up API key |
+| `TRELLO_API_SECRET` | Yes | Trello API secret |
+| `STUDIO_PUBLIC_URL` | Yes | Post-OAuth redirect base (e.g. `http://localhost:5173`) |
+| `OAUTH_REDIRECT_URI` | Optional | Trello callback; default `{TRELLO_MCP_PUBLIC_URL}/oauth/callback` |
+| `TRELLO_MCP_PUBLIC_URL` | Optional | Public base URL if `OAUTH_REDIRECT_URI` unset |
+| `CREDENTIAL_VAULT_API_URL` | Yes | datumbridge-mcp base URL for vault save |
+| `MCP_SERVICE_API_KEY` | Yes | Service auth for vault save + OAuth start proxy |
+| `TRELLO_HTTP_TIMEOUT_SEC` | Optional | API timeout (default 30) |
+
+## datumbridge-mcp (proxy only)
+
+| Variable | Description |
+|----------|-------------|
+| `TRELLO_MCP_URL` | In-cluster trello-mcp URL (default `http://trello-mcp-main.mcp-tools.svc.cluster.local:8000`) |
+
+Do **not** set `TRELLO_API_KEY` / `TRELLO_API_SECRET` on datumbridge-mcp.
 
 ## Credentials (per tool invocation)
 
-Pass either `credentials_path` or `credentials_json`:
+Vault injects `credentials_json`:
 
 ```json
 {
-  "api_key": "your_api_key",
-  "token": "your_token"
+  "api_key": "...",
+  "token": "..."
 }
 ```
 
-### Obtaining credentials
+## OAuth flow
 
-1. API key: https://trello.com/app-key
-2. Token: authorize with read,write scope:
-
+```text
+Studio → datumbridge-mcp /credentials/oauth/trello/start (JWT)
+      → trello-mcp /oauth/start (service key + X-User-ID)
+      → Trello authorize
+      → trello-mcp /oauth/callback
+      → datumbridge-mcp /internal/credentials/trello (vault save)
+      → redirect STUDIO_PUBLIC_URL/account/integrations?trello=connected
 ```
-https://trello.com/1/authorize?expiration=never&scope=read,write&response_type=token&name=TrelloMCP&key=YOUR_API_KEY
-```
 
-## DatumBridge Studio
-
-When registered in the platform credential vault, `credentials_json` is injected on tool execute. Do not map raw tokens in workflow parameters.
+Register **trello-mcp** callback URL in Trello Power-Up admin (`GET /oauth/info`).

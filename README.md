@@ -101,9 +101,16 @@ chmod +x k8s-deploy.sh
 - Service: `http://trello-mcp-main.mcp-tools.svc.cluster.local:8000`
 - MCP: `http://trello-mcp-main.mcp-tools.svc.cluster.local:8000/mcp/`
 
-**Production (DatumBridge Studio):** connect Trello under Account → Integrations. The MCP registry injects `credentials_json` on execute.
+**Production (DatumBridge Studio):** connect Trello under Account → Integrations. Configure `TRELLO_API_KEY`, `TRELLO_API_SECRET`, and `STUDIO_PUBLIC_URL` on **this** deployment (not datumbridge-mcp). Register `/oauth/callback` from `/oauth/info` in Trello Power-Up admin.
 
 Registry id: **`mcpServer=trello`**.
+
+## Studio Integrations setup
+
+1. Set in `.env`: `TRELLO_API_KEY`, `TRELLO_API_SECRET`, `STUDIO_PUBLIC_URL`, `MCP_SERVICE_API_KEY`.
+2. `./k8s-deploy.sh` — auto-sets `OAUTH_REDIRECT_URI` from NodePort.
+3. Register callback URL from `/oauth/info` at [trello.com/app-key](https://trello.com/app-key).
+4. On `datumbridge-mcp`, set only `TRELLO_MCP_URL` (OAuth start proxy).
 
 ## License
 

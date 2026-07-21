@@ -7,6 +7,7 @@ data:
   PORT: "8000"
   LOG_LEVEL: "INFO"
   TRELLO_HTTP_TIMEOUT_SEC: "30"
+  CREDENTIAL_VAULT_API_URL: "http://datumbridge-mcp:8081"
 ---
 apiVersion: v1
 kind: Service
@@ -53,6 +54,8 @@ spec:
           envFrom:
             - configMapRef:
                 name: trello-mcp-main-config
+            - secretRef:
+                name: trello-mcp-main-secret
           readinessProbe:
             httpGet:
               path: /health

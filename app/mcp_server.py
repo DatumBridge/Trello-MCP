@@ -588,7 +588,7 @@ def create_list(
         return ActionResponse(success=False, error=_error_response(e))
 
 
-# ============== HTTP App with Health Endpoint ==============
+from app.oauth_routes import oauth_callback, oauth_info_route, oauth_start_route
 
 _base_app = mcp.http_app()
 
@@ -609,6 +609,9 @@ http_app = Starlette(
     routes=[
         Route("/health", health),
         Route("/test", test_ui),
+        Route("/oauth/start", oauth_start_route),
+        Route("/oauth/callback", oauth_callback),
+        Route("/oauth/info", oauth_info_route),
         Mount("/", _base_app),
     ],
     lifespan=getattr(_base_app, "lifespan", None),
