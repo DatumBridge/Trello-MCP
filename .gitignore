@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.env
+.env.local
+*.json
+!package.json
+.cursor/
+.vscode/
+.idea/
+.DS_Store
+.pytest_cache/
