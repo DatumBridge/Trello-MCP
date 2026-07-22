@@ -4,10 +4,10 @@ metadata:
   name: trello-mcp-main-config
   namespace: mcp-tools
 data:
+  # Non-sensitive runtime knobs only. Credentials and service URLs live in Secret.
   PORT: "8000"
   LOG_LEVEL: "INFO"
   TRELLO_HTTP_TIMEOUT_SEC: "30"
-  CREDENTIAL_VAULT_API_URL: "http://datumbridge-mcp:8081"
 ---
 apiVersion: v1
 kind: Service
@@ -45,9 +45,9 @@ spec:
     spec:
       securityContext:
         runAsNonRoot: true
-        runAsUser: 1000
-        runAsGroup: 1000
-        fsGroup: 1000
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
         seccompProfile:
           type: RuntimeDefault
       containers:
@@ -65,8 +65,8 @@ spec:
                 name: trello-mcp-main-secret
           securityContext:
             runAsNonRoot: true
-            runAsUser: 1000
-            runAsGroup: 1000
+            runAsUser: 10001
+            runAsGroup: 10001
             allowPrivilegeEscalation: false
             privileged: false
             readOnlyRootFilesystem: true

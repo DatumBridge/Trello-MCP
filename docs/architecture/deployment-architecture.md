@@ -33,4 +33,5 @@
 - Credentials never logged
 - Write tools require `confirm=true`
 - `credentials_path` restricted to `TRELLO_CREDENTIALS_DIR`
-- Kubernetes pod/container security context: non-root UID/GID `1000` (matches Dockerfile `appuser`), `readOnlyRootFilesystem: true`, `allowPrivilegeEscalation: false`, drop all capabilities, `RuntimeDefault` seccomp; only `/tmp` is writable via `emptyDir`
+- Kubernetes pod/container security context: non-root UID/GID `10001` (matches Dockerfile `appuser`; IDs > 10000), `readOnlyRootFilesystem: true`, `allowPrivilegeEscalation: false`, drop all capabilities, `RuntimeDefault` seccomp; only `/tmp` is writable via `emptyDir`
+- ConfigMap holds non-sensitive knobs only (`PORT`, `LOG_LEVEL`, `TRELLO_HTTP_TIMEOUT_SEC`); service URLs and credentials are in Secret (`trello-mcp-main-secret`)

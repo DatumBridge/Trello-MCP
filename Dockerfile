@@ -22,8 +22,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-RUN groupadd -r appuser -g 1000 && \
-    useradd -r -u 1000 -g appuser -s /sbin/nologin -c "Application user" appuser
+# UID/GID > 10000 avoids host user-table conflicts (K8s hardening).
+RUN groupadd -r appuser -g 10001 && \
+    useradd -r -u 10001 -g appuser -s /sbin/nologin -c "Application user" appuser
 
 COPY --from=builder /opt/venv /opt/venv
 COPY . .

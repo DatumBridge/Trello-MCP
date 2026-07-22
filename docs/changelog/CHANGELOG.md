@@ -3,6 +3,8 @@
 ### Changed
 
 - Hardened `k8s/deployment.yaml`: non-root UID/GID 1000, `readOnlyRootFilesystem`, drop all capabilities, RuntimeDefault seccomp, writable `/tmp` emptyDir only
+- Raised container UID/GID to `10001` (Dockerfile + Deployment) to avoid host user-table conflicts
+- Moved `CREDENTIAL_VAULT_API_URL` out of ConfigMap into Secret; ConfigMap keeps only non-sensitive knobs
 
 ## 2026-07-21
 

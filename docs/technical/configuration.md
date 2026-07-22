@@ -9,8 +9,8 @@
 | `STUDIO_PUBLIC_URL` | Yes | Post-OAuth redirect base (e.g. `http://localhost:5173`) |
 | `OAUTH_REDIRECT_URI` | Optional | Trello callback; default `{TRELLO_MCP_PUBLIC_URL}/oauth/callback` |
 | `TRELLO_MCP_PUBLIC_URL` | Optional | Public base URL if `OAUTH_REDIRECT_URI` unset |
-| `CREDENTIAL_VAULT_API_URL` | Yes | datumbridge-mcp base URL for vault save |
-| `MCP_SERVICE_API_KEY` | Yes | Service auth for vault save + OAuth start proxy |
+| `CREDENTIAL_VAULT_API_URL` | Yes (Secret) | datumbridge-mcp base URL for vault save — not stored in ConfigMap |
+| `MCP_SERVICE_API_KEY` | Yes (Secret) | Service auth for vault save + OAuth start proxy |
 | `TRELLO_HTTP_TIMEOUT_SEC` | Optional | API timeout (default 30) |
 
 ## datumbridge-mcp (proxy only)
