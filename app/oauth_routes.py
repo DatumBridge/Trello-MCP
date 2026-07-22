@@ -83,8 +83,11 @@ async def oauth_callback(request: Request):
             status_code=302,
         )
     except TrelloError as e:
-        logger.error("oauth callback failed: %s", e.error_code)
-        return fail(e.error_code.lower())
+        logger.error("oauth callback failed: %s (%s)", e.error_code, e)
+        reason = e.error_code.lower()
+        if getattr(e, "original_error", None):
+            reason = f"{reason}:{str(e.original_error)[:80]}"
+        return fail(reason)
 
 
 async def oauth_info_route(_request: Request):

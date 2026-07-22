@@ -54,11 +54,17 @@ if [[ ${CREATE_SECRET} -eq 1 ]]; then
   fi
   TMP_ENV="$(mktemp)"
   trap 'rm -f "${TMP_ENV}"' EXIT
-  grep -E '^(TRELLO_API_KEY|TRELLO_API_SECRET|STUDIO_PUBLIC_URL|OAUTH_REDIRECT_URI|MCP_SERVICE_API_KEY|CREDENTIAL_VAULT_API_URL|TRELLO_MCP_PUBLIC_URL)=' \
+  grep -E '^(TRELLO_API_KEY|TRELLO_API_SECRET|STUDIO_PUBLIC_URL|OAUTH_REDIRECT_URI|MCP_SERVICE_API_KEY|CREDENTIAL_VAULT_API_URL|TRELLO_MCP_PUBLIC_URL|DATUMBRIDGE_MCP_NAMESPACE|DATUMBRIDGE_MCP_SERVICE|DATUMBRIDGE_MCP_PORT)=' \
     "${ENV_FILE}" | grep -v '^=*$' > "${TMP_ENV}" || true
   if [[ ! -s "${TMP_ENV}" ]]; then
     echo "Error: set TRELLO_API_KEY and TRELLO_API_SECRET in .env"
     exit 1
+  fi
+  if ! grep -q '^CREDENTIAL_VAULT_API_URL=' "${TMP_ENV}"; then
+    echo "CREDENTIAL_VAULT_API_URL=http://datumbridge-mcp.datumbridge-adk-db.svc.cluster.local:8081" >> "${TMP_ENV}"
+  fi
+  if ! grep -q '^STUDIO_PUBLIC_URL=' "${TMP_ENV}"; then
+    echo "STUDIO_PUBLIC_URL=http://localhost:30080" >> "${TMP_ENV}"
   fi
   kubectl -n "${NAMESPACE}" create secret generic trello-mcp-main-secret \
     --from-env-file="${TMP_ENV}" \

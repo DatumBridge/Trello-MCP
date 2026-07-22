@@ -110,7 +110,7 @@ Registry id: **`mcpServer=trello`**.
 1. Set in `.env`: `TRELLO_API_KEY`, `TRELLO_API_SECRET`, `STUDIO_PUBLIC_URL`, `MCP_SERVICE_API_KEY`.
 2. `./k8s-deploy.sh` — auto-sets `OAUTH_REDIRECT_URI` from NodePort.
 3. Register callback URL from `/oauth/info` at [trello.com/app-key](https://trello.com/app-key).
-4. On `datumbridge-mcp`, set only `TRELLO_MCP_URL` (OAuth start proxy).
+4. On `datumbridge-mcp`, set `TRELLO_MCP_URL` only when the in-cluster service name differs from registry defaults (optional if trello-mcp is registered in Tool Registry with a `baseURL`).
 
 ## License
 

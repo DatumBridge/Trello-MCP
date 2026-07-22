@@ -20,6 +20,7 @@ from typing import Any, Dict, Optional, Tuple
 import requests
 
 from app.core.exceptions import TrelloError
+from app.pending_client import consume_oauth_pending, save_oauth_pending
 
 TRELLO_REQUEST_TOKEN_URL = "https://trello.com/1/OAuthGetRequestToken"
 TRELLO_AUTHORIZE_TOKEN_URL = "https://trello.com/1/OAuthAuthorizeToken"
@@ -206,6 +207,7 @@ def oauth_start(user_id: str) -> str:
         "request_token_secret": req_secret,
         "created_at": time.time(),
     }
+    save_oauth_pending(req_token, user_id.strip(), req_secret)
     q = urllib.parse.urlencode(
         {
             "oauth_token": req_token,
@@ -220,8 +222,17 @@ def oauth_start(user_id: str) -> str:
 def oauth_complete(request_token: str, verifier: str) -> Dict[str, Any]:
     """Exchange verifier for access token; return vault payload metadata."""
     _purge_pending()
-    pending = _pending.pop(request_token, None)
-    if not pending or not pending.get("user_id"):
+    user_id = ""
+    request_secret = ""
+    consumed = consume_oauth_pending(request_token)
+    if consumed:
+        user_id, request_secret = consumed
+    else:
+        pending = _pending.pop(request_token, None)
+        if pending and pending.get("user_id"):
+            user_id = pending["user_id"]
+            request_secret = pending.get("request_token_secret", "")
+    if not user_id or not request_secret:
         raise TrelloError(
             "invalid or expired trello oauth state",
             error_code="OAUTH_STATE",
@@ -233,13 +244,13 @@ def oauth_complete(request_token: str, verifier: str) -> Dict[str, Any]:
         api_key,
         api_secret,
         request_token,
-        pending["request_token_secret"],
+        request_secret,
         verifier,
     )
     account_label = _fetch_username(api_key, access_token)
     bundle = {"api_key": api_key, "token": access_token}
     return {
-        "user_id": pending["user_id"],
+        "user_id": user_id,
         "account_label": account_label,
         "credentials_json": json.dumps(bundle),
         "bundle": bundle,
