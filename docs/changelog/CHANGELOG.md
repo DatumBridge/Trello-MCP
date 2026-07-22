@@ -1,3 +1,9 @@
+## 2026-07-22
+
+### Changed
+
+- Hardened `k8s/deployment.yaml`: non-root UID/GID 1000, `readOnlyRootFilesystem`, drop all capabilities, RuntimeDefault seccomp, writable `/tmp` emptyDir only
+
 ## 2026-07-21
 
 ### Added

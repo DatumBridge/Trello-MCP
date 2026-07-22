@@ -33,3 +33,4 @@
 - Credentials never logged
 - Write tools require `confirm=true`
 - `credentials_path` restricted to `TRELLO_CREDENTIALS_DIR`
+- Kubernetes pod/container security context: non-root UID/GID `1000` (matches Dockerfile `appuser`), `readOnlyRootFilesystem: true`, `allowPrivilegeEscalation: false`, drop all capabilities, `RuntimeDefault` seccomp; only `/tmp` is writable via `emptyDir`
