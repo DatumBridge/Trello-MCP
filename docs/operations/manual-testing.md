@@ -19,6 +19,7 @@ export TRELLO_CREDENTIALS_FILE=./token.json
 ./scripts/manual_mcp_call.sh get_me
 ./scripts/manual_mcp_call.sh list_boards
 BOARD_ID=<id> ./scripts/manual_mcp_call.sh list_lists
+BOARD_ID=<id> QUERY="keyword" ./scripts/manual_mcp_call.sh search_cards_in_board
 LIST_ID=<id> NAME="Test" DRY_RUN=true ./scripts/manual_mcp_call.sh create_card
 LIST_ID=<id> NAME="Test" CONFIRM=true DRY_RUN=false ./scripts/manual_mcp_call.sh create_card
 ```

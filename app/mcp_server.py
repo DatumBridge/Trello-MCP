@@ -5,8 +5,8 @@ Exposes Trello board, list, and card management via Model Context Protocol (MCP)
 Uses fastmcp for MCP server implementation.
 
 Tools: get_me, list_boards, get_board, list_lists, list_cards, get_card,
-       search_cards, create_card, update_card, move_card, archive_card,
-       add_comment, create_list
+       search_cards, search_cards_in_board, create_card, update_card, move_card,
+       archive_card, add_comment, create_list
 
 Usage:
     # Run as standalone server (stdio mode for Claude Desktop):
@@ -28,7 +28,7 @@ from starlette.applications import Starlette
 from starlette.responses import FileResponse, JSONResponse
 from starlette.routing import Mount, Route
 
-from app.core.exceptions import TrelloError
+from app.core.exceptions import TrelloError, TrelloValidationError
 from app.schemas.mcp_models import (
     ActionResponse,
     BoardListResponse,
@@ -48,7 +48,7 @@ mcp = FastMCP(
     Trello MCP Server provides tools for:
     - Reading the authenticated member profile
     - Listing and fetching boards, lists, and cards
-    - Searching cards across boards
+    - Searching cards across boards or within a single board
     - Creating and updating cards, lists, and comments
 
     Credentials must be passed as input: credentials_path or credentials_json
@@ -270,7 +270,7 @@ def search_cards(
     ),
     limit: int = Field(default=20, description="Max cards to return (1-1000)"),
 ) -> CardListResponse:
-    """Search Trello cards by query string."""
+    """Search Trello cards by query string across one or more boards (or all)."""
     logger.info("MCP: search_cards query=%s", query)
     try:
         if not credentials_path and not credentials_json:
@@ -280,6 +280,34 @@ def search_cards(
         return CardListResponse(success=True, cards=cards, total_count=len(cards))
     except TrelloError as e:
         logger.error("search_cards failed: %s", e.error_code)
+        return CardListResponse(success=False, error=_error_response(e))
+
+
+@mcp.tool()
+def search_cards_in_board(
+    board_id: str = Field(..., description="Trello board ID to search within"),
+    query: str = Field(..., description="Search query string"),
+    credentials_path: Optional[str] = _CREDS_PATH_FIELD,
+    credentials_json: Optional[str] = _CREDS_JSON_FIELD,
+    limit: int = Field(default=20, description="Max cards to return (1-1000)"),
+) -> CardListResponse:
+    """Search Trello cards within a single board.
+
+    Prefer this over ``search_cards`` when the workflow already selected one board
+    (``boardId`` / ``board_id`` is a string, not a list).
+    """
+    logger.info("MCP: search_cards_in_board board_id=%s query=%s", board_id, query)
+    try:
+        if not credentials_path and not credentials_json:
+            return CardListResponse(success=False, error=_creds_required_error())
+        bid = (board_id or "").strip()
+        if not bid:
+            raise TrelloValidationError("board_id is required")
+        service = _get_trello_service(credentials_path, credentials_json)
+        cards = service.search_cards(query, board_ids=[bid], limit=limit)
+        return CardListResponse(success=True, cards=cards, total_count=len(cards))
+    except TrelloError as e:
+        logger.error("search_cards_in_board failed: %s", e.error_code)
         return CardListResponse(success=False, error=_error_response(e))
 
 

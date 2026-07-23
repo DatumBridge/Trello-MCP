@@ -139,6 +139,74 @@ class TestTrelloService(unittest.TestCase):
             self._service().update_card("card1", name="x")
         self.assertEqual(ctx.exception.error_code, "NOT_FOUND")
 
+    @patch("app.services.trello_service.requests.request")
+    def test_search_cards_scopes_board_ids(self, mock_request):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.content = b'{"cards":[]}'
+        mock_resp.json.return_value = {"cards": []}
+        mock_request.return_value = mock_resp
+
+        self._service().search_cards("login", board_ids=["board1"], limit=10)
+        _, kwargs = mock_request.call_args
+        self.assertEqual(kwargs["params"]["idBoards"], "board1")
+
+
+class TestSearchCardsInBoardTool(unittest.TestCase):
+    """MCP tool wrapper: scalar board_id → service.search_cards(board_ids=[...])."""
+
+    @patch("app.mcp_server._get_trello_service")
+    def test_search_cards_in_board_wraps_board_id(self, mock_get_service):
+        from app.mcp_server import search_cards_in_board
+
+        mock_svc = MagicMock()
+        mock_svc.search_cards.return_value = [{"id": "c1", "name": "Login"}]
+        mock_get_service.return_value = mock_svc
+
+        result = search_cards_in_board.fn(
+            board_id="sample",
+            query="login",
+            credentials_json=json.dumps({"api_key": "k", "token": "t"}),
+            limit=5,
+        )
+        self.assertTrue(result.success)
+        self.assertEqual(result.total_count, 1)
+        mock_svc.search_cards.assert_called_once_with(
+            "login", board_ids=["sample"], limit=5
+        )
+
+    @patch("app.mcp_server._get_trello_service")
+    def test_search_cards_in_board_trims_board_id(self, mock_get_service):
+        from app.mcp_server import search_cards_in_board
+
+        mock_svc = MagicMock()
+        mock_svc.search_cards.return_value = []
+        mock_get_service.return_value = mock_svc
+
+        result = search_cards_in_board.fn(
+            board_id="  sample  ",
+            query="login",
+            credentials_json=json.dumps({"api_key": "k", "token": "t"}),
+            limit=20,
+        )
+        self.assertTrue(result.success)
+        mock_svc.search_cards.assert_called_once_with(
+            "login", board_ids=["sample"], limit=20
+        )
+
+    @patch("app.mcp_server._get_trello_service")
+    def test_search_cards_in_board_rejects_empty_board_id(self, mock_get_service):
+        from app.mcp_server import search_cards_in_board
+
+        result = search_cards_in_board.fn(
+            board_id="  ",
+            query="login",
+            credentials_json=json.dumps({"api_key": "k", "token": "t"}),
+        )
+        self.assertFalse(result.success)
+        self.assertEqual(result.error["error_code"], "VALIDATION_ERROR")
+        mock_get_service.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -40,6 +40,9 @@ build_args() {
     search_cards)
       echo "{\"query\":\"${QUERY:?set QUERY}\"}"
       ;;
+    search_cards_in_board)
+      echo "{\"board_id\":\"${BOARD_ID:?set BOARD_ID}\",\"query\":\"${QUERY:?set QUERY}\"}"
+      ;;
     create_card)
       echo "{\"list_id\":\"${LIST_ID:?set LIST_ID}\",\"name\":\"${NAME:-MCP test card}\",\"confirm\":${CONFIRM:-false},\"dry_run\":${DRY_RUN:-true}}"
       ;;

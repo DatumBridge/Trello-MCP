@@ -7,7 +7,7 @@
 | `TRELLO_API_KEY` | Yes | Trello Power-Up API key |
 | `TRELLO_API_SECRET` | Yes | Trello API secret |
 | `STUDIO_PUBLIC_URL` | Yes | Post-OAuth redirect base — must match Studio URL (K8s NodePort default `http://localhost:30080`) |
-| `OAUTH_REDIRECT_URI` | Optional | Trello callback; default `{TRELLO_MCP_PUBLIC_URL}/oauth/callback` |
+| `OAUTH_REDIRECT_URI` | Recommended | **`{STUDIO_PUBLIC_URL}/api/mcp/api/v1/credentials/oauth/trello/callback`** (Studio→datumbridge-mcp→trello-mcp; same as Gmail) |
 | `TRELLO_MCP_PUBLIC_URL` | Optional | Public base URL if `OAUTH_REDIRECT_URI` unset |
 | `CREDENTIAL_VAULT_API_URL` | Yes (Secret) | datumbridge-mcp base URL — use `http://datumbridge-mcp.datumbridge-adk-db.svc.cluster.local:8081` from `mcp-tools` |
 | `DATUMBRIDGE_MCP_NAMESPACE` | Optional | Fallback vault host namespace (default `datumbridge-adk-db`) |
@@ -39,8 +39,8 @@ Vault injects `credentials_json`:
 Studio → datumbridge-mcp /credentials/oauth/trello/start (JWT)
       → trello-mcp /oauth/start (service key + X-User-ID; pending saved on datumbridge-mcp)
       → Trello authorize
-      → trello-mcp /oauth/callback
-      → datumbridge-mcp /internal/credentials/trello (vault save)
+      → browser → Studio /api/mcp/…/credentials/oauth/trello/callback
+      → datumbridge-mcp → trello-mcp /oauth/callback → vault save
       → redirect STUDIO_PUBLIC_URL/account/integrations?trello=connected
 ```
 

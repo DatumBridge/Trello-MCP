@@ -79,14 +79,14 @@ sed \
 
 kubectl -n "${NAMESPACE}" rollout status deploy/trello-mcp-main --timeout=300s
 
-NODE_PORT="$(kubectl -n "${NAMESPACE}" get svc trello-mcp-main -o jsonpath='{.spec.ports[0].nodePort}')"
-REDIRECT_URI="http://127.0.0.1:${NODE_PORT}/oauth/callback"
+STUDIO_URL="$(grep '^STUDIO_PUBLIC_URL=' "${ENV_FILE}" 2>/dev/null | cut -d= -f2- | tr -d '"' | tr -d "'" || true)"
+STUDIO_URL="${STUDIO_URL:-http://localhost:30080}"
+REDIRECT_URI="${STUDIO_URL%/}/api/mcp/api/v1/credentials/oauth/trello/callback"
 
 kubectl -n "${NAMESPACE}" patch secret trello-mcp-main-secret --type merge -p \
-  "{\"stringData\":{\"OAUTH_REDIRECT_URI\":\"${REDIRECT_URI}\",\"TRELLO_MCP_PUBLIC_URL\":\"http://127.0.0.1:${NODE_PORT}\"}}" >/dev/null || true
+  "{\"stringData\":{\"OAUTH_REDIRECT_URI\":\"${REDIRECT_URI}\"}}" >/dev/null || true
 kubectl -n "${NAMESPACE}" set env deployment/trello-mcp-main \
-  "OAUTH_REDIRECT_URI=${REDIRECT_URI}" \
-  "TRELLO_MCP_PUBLIC_URL=http://127.0.0.1:${NODE_PORT}" >/dev/null || true
+  "OAUTH_REDIRECT_URI=${REDIRECT_URI}" >/dev/null || true
 kubectl -n "${NAMESPACE}" rollout status deploy/trello-mcp-main --timeout=180s
 
 if [[ ${SKIP_SMOKE} -eq 0 ]]; then
@@ -96,6 +96,5 @@ fi
 
 echo "Done."
 echo "  In-cluster MCP: http://trello-mcp-main.${NAMESPACE}.svc.cluster.local:8000/mcp/"
-echo "  OAuth callback: ${REDIRECT_URI}"
-echo "  Register that callback URL in Trello Power-Up admin."
-echo "  OAuth info:     http://127.0.0.1:${NODE_PORT}/oauth/info"
+echo "  OAuth callback (register in Trello Power-Up admin): ${REDIRECT_URI}"
+echo "  OAuth info (via MCP proxy): ${STUDIO_URL%/}/api/mcp/api/v1/credentials/oauth/trello/start"

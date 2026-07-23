@@ -60,23 +60,61 @@ def _api_secret() -> str:
     return secret
 
 
+def recommended_oauth_redirect_uri(studio_base: str) -> str:
+    base = (studio_base or "http://localhost:30080").strip().rstrip("/")
+    return f"{base}/api/mcp/api/v1/credentials/oauth/trello/callback"
+
+
+def _validate_oauth_redirect_uri(uri: str) -> None:
+    normalized = uri.rstrip("/")
+    studio = os.environ.get("STUDIO_PUBLIC_URL", "").strip().rstrip("/")
+    if studio and normalized == studio:
+        raise TrelloError(
+            "OAUTH_REDIRECT_URI must not equal STUDIO_PUBLIC_URL; register "
+            f"{recommended_oauth_redirect_uri(studio)} in Trello Power-Up admin",
+            error_code="OAUTH_CONFIG",
+            retryable=False,
+        )
+    allowed_suffixes = ("/oauth/callback", "/credentials/oauth/trello/callback")
+    if not any(normalized.endswith(suffix) for suffix in allowed_suffixes):
+        raise TrelloError(
+            "OAUTH_REDIRECT_URI must end with /credentials/oauth/trello/callback "
+            f"(recommended: {recommended_oauth_redirect_uri(studio or 'http://localhost:30080')})",
+            error_code="OAUTH_CONFIG",
+            retryable=False,
+        )
+
+
 def oauth_redirect_uri() -> str:
     uri = os.environ.get("OAUTH_REDIRECT_URI", "").strip()
     if uri:
+        _validate_oauth_redirect_uri(uri)
         return uri
+    studio = os.environ.get("STUDIO_PUBLIC_URL", "").strip().rstrip("/")
+    if studio:
+        return recommended_oauth_redirect_uri(studio)
     public = os.environ.get("TRELLO_MCP_PUBLIC_URL", "").strip().rstrip("/")
     if public:
-        return f"{public}/oauth/callback"
+        candidate = f"{public}/oauth/callback"
+        _validate_oauth_redirect_uri(candidate)
+        return candidate
     raise TrelloError(
-        "OAUTH_REDIRECT_URI or TRELLO_MCP_PUBLIC_URL is required",
+        "OAUTH_REDIRECT_URI, STUDIO_PUBLIC_URL, or TRELLO_MCP_PUBLIC_URL is required",
         error_code="OAUTH_CONFIG",
         retryable=False,
     )
 
 
 def studio_public_url() -> str:
-    url = os.environ.get("STUDIO_PUBLIC_URL", "http://localhost:5173").strip().rstrip("/")
-    return url
+    url = os.environ.get("STUDIO_PUBLIC_URL", "").strip().rstrip("/")
+    if url:
+        return url
+    redirect = os.environ.get("OAUTH_REDIRECT_URI", "").strip()
+    if redirect:
+        parsed = urllib.parse.urlparse(redirect)
+        if parsed.scheme and parsed.netloc:
+            return f"{parsed.scheme}://{parsed.netloc}"
+    return "http://localhost:30080"
 
 
 def oauth_info() -> Dict[str, str]:

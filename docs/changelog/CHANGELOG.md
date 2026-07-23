@@ -1,3 +1,9 @@
+## 2026-07-23
+
+### Added
+
+- `search_cards_in_board` — search cards scoped to a single `board_id` string (prefer over `search_cards` + `board_ids` list when the workflow already selected one board)
+
 ## 2026-07-22
 
 ### Changed
