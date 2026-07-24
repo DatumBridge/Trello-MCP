@@ -9,8 +9,10 @@ from __future__ import annotations
 
 import json
 import os
+import re
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 
@@ -25,10 +27,98 @@ DEFAULT_TIMEOUT_SEC = 30
 DEFAULT_CARD_FIELDS = (
     "id,name,desc,closed,due,dueComplete,idList,idBoard,url,labels,pos"
 )
-DEFAULT_BOARD_FIELDS = "id,name,desc,closed,url,shortUrl,prefs"
+DEFAULT_BOARD_FIELDS = "id,name,desc,closed,url,shortUrl,shortLink,prefs"
 DEFAULT_LIST_FIELDS = "id,name,closed,pos"
 DEFAULT_MEMBER_FIELDS = "id,username,fullName,url,email"
 
+# Trello Mongo-style ObjectIds (boards/cards/lists).
+_TRELLO_OBJECT_ID_RE = re.compile(r"^[a-fA-F0-9]{24}$")
+
+# Accepted calendar-date shapes (day-first for ambiguous slash/dash dates).
+_DUE_DATE_FORMATS: Tuple[str, ...] = (
+    "%Y-%m-%d",
+    "%Y/%m/%d",
+    "%d/%m/%Y",
+    "%d-%m-%Y",
+)
+_DUE_DATETIME_FORMATS: Tuple[str, ...] = (
+    "%Y-%m-%dT%H:%M:%S.%fZ",
+    "%Y-%m-%dT%H:%M:%SZ",
+    "%Y-%m-%dT%H:%M:%S.%f%z",
+    "%Y-%m-%dT%H:%M:%S%z",
+    "%Y-%m-%dT%H:%M:%S.%f",
+    "%Y-%m-%dT%H:%M:%S",
+    "%Y-%m-%d %H:%M:%S",
+    "%Y-%m-%d %H:%M",
+    "%Y/%m/%d %H:%M:%S",
+    "%Y/%m/%d %H:%M",
+    "%d/%m/%Y %H:%M:%S",
+    "%d/%m/%Y %H:%M",
+    "%d-%m-%Y %H:%M:%S",
+    "%d-%m-%Y %H:%M",
+)
+
+
+def looks_like_trello_object_id(value: str) -> bool:
+    return bool(_TRELLO_OBJECT_ID_RE.match((value or "").strip()))
+
+
+def _parse_due_datetime(due_s: str) -> datetime:
+    """Parse a due string into a datetime (date or date-time)."""
+    text = due_s.strip()
+    if not text:
+        raise TrelloValidationError("due must be a non-empty date string")
+
+    # Normalize common ISO variants: space→T, Z timezone for fromisoformat.
+    iso_candidate = text
+    if len(iso_candidate) > 10 and iso_candidate[10] == " ":
+        iso_candidate = iso_candidate[:10] + "T" + iso_candidate[11:]
+    try:
+        # fromisoformat handles 2026-07-21 and 2026-07-21T12:00:00[+/-offset]
+        normalized = iso_candidate.replace("Z", "+00:00")
+        return datetime.fromisoformat(normalized)
+    except ValueError:
+        pass
+
+    for fmt in _DUE_DATETIME_FORMATS + _DUE_DATE_FORMATS:
+        try:
+            return datetime.strptime(text, fmt)
+        except ValueError:
+            continue
+
+    raise TrelloValidationError(
+        "due must be a calendar date or ISO date-time "
+        "(accepted: dd/MM/yyyy, dd-MM-yyyy, yyyy-MM-dd, yyyy/MM/dd, "
+        "or ISO 8601 e.g. 2026-07-21T12:00:00.000Z); "
+        f"got {text[:80]!r}"
+    )
+
+
+def normalize_due_for_trello(due: str) -> str:
+    """Parse common date formats and emit a Trello-safe ISO value.
+
+    Date-only inputs become ``YYYY-MM-DD``. Inputs with a time become
+    ``YYYY-MM-DDTHH:MM:SS.000Z`` (treated as UTC when no offset was given).
+    """
+    raw = due.strip()
+    dt = _parse_due_datetime(raw)
+    # Detect an explicit time/offset — do not treat "-MM-" inside dd-MM-yyyy as TZ.
+    time_present = bool(
+        re.search(r"[Tt ]\d{1,2}:\d{2}", raw)
+        or re.search(r"[Tt ].*Z$", raw, re.IGNORECASE)
+        or re.search(r"[Tt ].*[+-]\d{2}:?\d{2}$", raw)
+    )
+    if not time_present:
+        return dt.strftime("%Y-%m-%d")
+    if dt.tzinfo is not None:
+        utc = dt.astimezone(timezone.utc)
+        return utc.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+    return dt.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+
+def _require_iso_due(due: str) -> str:
+    """Backward-compatible name: normalize accepted due formats for Trello."""
+    return normalize_due_for_trello(due)
 
 def _request_timeout() -> int:
     raw = os.environ.get("TRELLO_HTTP_TIMEOUT_SEC", "").strip()
@@ -204,6 +294,58 @@ class TrelloService:
             params={"fields": DEFAULT_BOARD_FIELDS},
         )
 
+    def resolve_board_id(self, board_ref: str) -> str:
+        """Resolve a board ObjectId, shortLink, or exact name to a board ObjectId.
+
+        ``/search`` ``idBoards`` requires ObjectIds — names like ``sample`` cause
+        HTTP 400 Invalid objectId. Prefer binding ``list_boards`` / ``get_board``
+        ``.id``; this helper recovers when a human stage passed a name or shortLink.
+        """
+        ref = (board_ref or "").strip()
+        if not ref:
+            raise TrelloValidationError("board_id is required")
+        if looks_like_trello_object_id(ref):
+            return ref
+
+        # shortLink (and some aliases) work on GET /boards/{id}
+        try:
+            board = self.get_board(ref)
+            bid = (board.get("id") or "").strip() if isinstance(board, dict) else ""
+            if looks_like_trello_object_id(bid):
+                return bid
+        except TrelloError:
+            pass
+
+        boards = self.list_boards(limit=1000)
+        ref_lower = ref.lower()
+        name_matches: List[Dict[str, Any]] = []
+        for board in boards:
+            if not isinstance(board, dict):
+                continue
+            bid = (board.get("id") or "").strip()
+            if not looks_like_trello_object_id(bid):
+                continue
+            short_link = (board.get("shortLink") or "").strip()
+            if short_link and short_link.lower() == ref_lower:
+                return bid
+            name = (board.get("name") or "").strip()
+            if name and name.lower() == ref_lower:
+                name_matches.append(board)
+
+        if len(name_matches) == 1:
+            return str(name_matches[0]["id"]).strip()
+        if len(name_matches) > 1:
+            ids = ", ".join(str(b.get("id")) for b in name_matches[:5])
+            raise TrelloValidationError(
+                f"board_id {ref!r} matches multiple boards by name ({ids}). "
+                "Pass the board ObjectId from list_boards (field id)."
+            )
+        raise TrelloValidationError(
+            f"board_id {ref!r} is not a valid Trello ObjectId, shortLink, or "
+            "exact board name accessible to this token. Use list_boards and bind "
+            "the board's id field (24-char hex), not a display name placeholder."
+        )
+
     def list_lists(
         self,
         board_id: str,
@@ -281,7 +423,7 @@ class TrelloService:
             "pos": pos,
         }
         if due:
-            body["due"] = due
+            body["due"] = _require_iso_due(due)
 
         if dry_run:
             return {"dry_run": True, "request_body": body}
@@ -308,7 +450,11 @@ class TrelloService:
         if desc is not None:
             body["desc"] = desc
         if due is not None:
-            body["due"] = due
+            # Empty string clears due; non-empty is normalized to Trello ISO.
+            if due.strip():
+                body["due"] = _require_iso_due(due)
+            else:
+                body["due"] = due
         if due_complete is not None:
             body["dueComplete"] = str(due_complete).lower()
         if closed is not None:
@@ -409,7 +555,16 @@ class TrelloService:
             "card_fields": DEFAULT_CARD_FIELDS,
         }
         if board_ids:
-            params["idBoards"] = ",".join(b.strip() for b in board_ids if b.strip())
+            resolved: List[str] = []
+            for raw in board_ids:
+                if raw is None:
+                    continue
+                text = str(raw).strip()
+                if not text:
+                    continue
+                resolved.append(self.resolve_board_id(text))
+            if resolved:
+                params["idBoards"] = ",".join(resolved)
 
         result = self._request("GET", "/search", params=params)
         cards = result.get("cards", []) if isinstance(result, dict) else []

@@ -1,8 +1,19 @@
+## 2026-07-24
+
+### Changed
+- `create_card` / `update_card` `due` accepts common calendar dates (`dd/MM/yyyy`, `dd-MM-yyyy`, `yyyy-MM-dd`, `yyyy/MM/dd`) and ISO 8601; values are normalized to Trello ISO before the API call. Relative prose still returns `VALIDATION_ERROR`.
+
 ## 2026-07-23
 
 ### Added
 
 - `search_cards_in_board` — search cards scoped to a single `board_id` string (prefer over `search_cards` + `board_ids` list when the workflow already selected one board)
+- Board ref resolution for search: `board_id` / `board_ids` accept ObjectId, shortLink, or exact board name (resolved before `/search` `idBoards`)
+
+### Fixed
+
+- Clearer `VALIDATION_ERROR` when Trello returns HTTP 400 Invalid objectId (was `UNKNOWN_ERROR`)
+- `create_card` rejects non-ISO `due` with `VALIDATION_ERROR` (relative prose no longer becomes opaque `UNKNOWN_ERROR`); HTTP 422 / invalid-date mapped to `VALIDATION_ERROR`; create/move error logs include message text
 
 ## 2026-07-22
 

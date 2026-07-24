@@ -119,6 +119,54 @@ class TestTrelloService(unittest.TestCase):
         self.assertEqual(result["request_body"]["name"], "Test card")
         mock_request.assert_not_called()
 
+    def test_create_card_rejects_non_iso_due(self):
+        with self.assertRaises(TrelloValidationError) as ctx:
+            self._service().create_card(
+                list_id="list1",
+                name="Test card",
+                due="Cuối tuần 1 sau khi phê duyệt phạm vi",
+            )
+        self.assertIn("due must be a calendar date", str(ctx.exception))
+
+    def test_update_card_rejects_non_iso_due(self):
+        with self.assertRaises(TrelloValidationError) as ctx:
+            self._service().update_card(
+                "card1",
+                due="next Friday",
+            )
+        self.assertIn("due must be a calendar date", str(ctx.exception))
+
+    def test_normalize_due_common_formats(self):
+        from app.services.trello_service import normalize_due_for_trello
+
+        cases = {
+            "21/07/2026": "2026-07-21",
+            "21-07-2026": "2026-07-21",
+            "2026-07-21": "2026-07-21",
+            "2026/07/21": "2026-07-21",
+            "2026-07-21T12:00:00.000Z": "2026-07-21T12:00:00.000Z",
+        }
+        for raw, expected in cases.items():
+            self.assertEqual(normalize_due_for_trello(raw), expected, raw)
+
+    @patch("app.services.trello_service.requests.request")
+    def test_create_card_normalizes_dd_mm_yyyy_due(self, mock_request):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"id": "c1", "name": "Test card", "due": "2026-07-21"}
+        mock_resp.text = "{}"
+        mock_request.return_value = mock_resp
+
+        result = self._service().create_card(
+            list_id="list1",
+            name="Test card",
+            due="21/07/2026",
+        )
+        self.assertEqual(result.get("id"), "c1")
+        _args, kwargs = mock_request.call_args
+        params = kwargs.get("params") or {}
+        self.assertEqual(params.get("due"), "2026-07-21")
+
     def test_list_cards_requires_scope(self):
         with self.assertRaises(TrelloValidationError):
             self._service().list_cards()
@@ -147,9 +195,43 @@ class TestTrelloService(unittest.TestCase):
         mock_resp.json.return_value = {"cards": []}
         mock_request.return_value = mock_resp
 
-        self._service().search_cards("login", board_ids=["board1"], limit=10)
+        board_oid = "aaaaaaaaaaaaaaaaaaaaaaaa"
+        self._service().search_cards("login", board_ids=[board_oid], limit=10)
         _, kwargs = mock_request.call_args
-        self.assertEqual(kwargs["params"]["idBoards"], "board1")
+        self.assertEqual(kwargs["params"]["idBoards"], board_oid)
+
+    def test_resolve_board_id_passthrough_object_id(self):
+        oid = "bbbbbbbbbbbbbbbbbbbbbbbb"
+        self.assertEqual(self._service().resolve_board_id(oid), oid)
+
+    @patch.object(TrelloService, "list_boards")
+    @patch.object(TrelloService, "get_board")
+    def test_resolve_board_id_by_exact_name(self, mock_get_board, mock_list_boards):
+        mock_get_board.side_effect = TrelloError("not found", error_code="NOT_FOUND")
+        mock_list_boards.return_value = [
+            {"id": "cccccccccccccccccccccccc", "name": "Sample", "shortLink": "AbCdEfGh"},
+        ]
+        resolved = self._service().resolve_board_id("sample")
+        self.assertEqual(resolved, "cccccccccccccccccccccccc")
+
+    @patch.object(TrelloService, "list_boards")
+    @patch.object(TrelloService, "get_board")
+    def test_resolve_board_id_unknown_name(self, mock_get_board, mock_list_boards):
+        mock_get_board.side_effect = TrelloError("not found", error_code="NOT_FOUND")
+        mock_list_boards.return_value = [
+            {"id": "cccccccccccccccccccccccc", "name": "Other", "shortLink": "AbCdEfGh"},
+        ]
+        with self.assertRaises(TrelloValidationError) as ctx:
+            self._service().resolve_board_id("sample")
+        self.assertIn("ObjectId", ctx.exception.message)
+
+    def test_normalize_invalid_object_id(self):
+        err = normalize_trello_error(
+            Exception('HTTP 400: {"message":"Invalid objectId","error":"ERROR"}'),
+            status_code=400,
+        )
+        self.assertEqual(err.error_code, "VALIDATION_ERROR")
+        self.assertIn("ObjectId", err.message)
 
 
 class TestSearchCardsInBoardTool(unittest.TestCase):

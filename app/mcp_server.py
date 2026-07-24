@@ -285,7 +285,13 @@ def search_cards(
 
 @mcp.tool()
 def search_cards_in_board(
-    board_id: str = Field(..., description="Trello board ID to search within"),
+    board_id: str = Field(
+        ...,
+        description=(
+            "Trello board ObjectId (24-char hex from list_boards/get_board .id). "
+            "Also accepts shortLink or exact board name (resolved to ObjectId)."
+        ),
+    ),
     query: str = Field(..., description="Search query string"),
     credentials_path: Optional[str] = _CREDS_PATH_FIELD,
     credentials_json: Optional[str] = _CREDS_JSON_FIELD,
@@ -295,6 +301,8 @@ def search_cards_in_board(
 
     Prefer this over ``search_cards`` when the workflow already selected one board
     (``boardId`` / ``board_id`` is a string, not a list).
+
+    ``board_id`` should be the Trello ObjectId. Names/shortLinks are resolved when possible.
     """
     logger.info("MCP: search_cards_in_board board_id=%s query=%s", board_id, query)
     try:
@@ -320,7 +328,10 @@ def create_card(
     desc: str = Field(default="", description="Card description"),
     due: Optional[str] = Field(
         default=None,
-        description="Due date (ISO 8601, e.g. 2026-07-21T12:00:00.000Z)",
+        description=(
+            "Due date. Accepts dd/MM/yyyy, dd-MM-yyyy, yyyy-MM-dd, yyyy/MM/dd, "
+            "or ISO 8601 (e.g. 2026-07-21T12:00:00.000Z); normalized for Trello."
+        ),
     ),
     pos: str = Field(
         default="bottom",
@@ -370,7 +381,11 @@ def create_card(
             message=f"Card created: {result.get('name', name)}",
         )
     except TrelloError as e:
-        logger.error("create_card failed: %s", e.error_code)
+        logger.error(
+            "create_card failed: %s — %s",
+            e.error_code,
+            e.message,
+        )
         return ActionResponse(success=False, error=_error_response(e))
 
 
@@ -381,7 +396,13 @@ def update_card(
     credentials_json: Optional[str] = _CREDS_JSON_FIELD,
     name: Optional[str] = Field(default=None, description="New card title"),
     desc: Optional[str] = Field(default=None, description="New card description"),
-    due: Optional[str] = Field(default=None, description="New due date (ISO 8601)"),
+    due: Optional[str] = Field(
+        default=None,
+        description=(
+            "New due date (dd/MM/yyyy, dd-MM-yyyy, yyyy-MM-dd, yyyy/MM/dd, or ISO 8601); "
+            "normalized for Trello. Empty string clears due."
+        ),
+    ),
     due_complete: Optional[bool] = Field(
         default=None,
         description="Mark due date complete/incomplete",
@@ -477,7 +498,11 @@ def move_card(
             message="Card moved",
         )
     except TrelloError as e:
-        logger.error("move_card failed: %s", e.error_code)
+        logger.error(
+            "move_card failed: %s — %s",
+            e.error_code,
+            e.message,
+        )
         return ActionResponse(success=False, error=_error_response(e))
 
 

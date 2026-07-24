@@ -143,6 +143,24 @@ def normalize_trello_error(
             retryable=True,
             original_error=exc,
         )
+    if code == 400 or "invalid objectid" in error_str or "invalid id" in error_str:
+        if "due" in error_str or "date" in error_str:
+            return TrelloValidationError(
+                message=str(exc),
+                original_error=exc,
+            )
+        return TrelloValidationError(
+            message=(
+                "Invalid Trello ObjectId in request. Pass a 24-char hex board/card/list "
+                "id from list_boards / get_board (field id), not a board name."
+            ),
+            original_error=exc,
+        )
+    if code == 422 or "invalid date" in error_str or "invalid value for due" in error_str:
+        return TrelloValidationError(
+            message=str(exc),
+            original_error=exc,
+        )
     return TrelloError(
         message=str(exc),
         error_code="UNKNOWN_ERROR",

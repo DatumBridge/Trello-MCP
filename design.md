@@ -30,8 +30,8 @@ The MCP Server must:
 | `list_lists` | `GET /boards/{id}/lists` | Lists on a board |
 | `list_cards` | `GET /lists/{id}/cards` or `/boards/{id}/cards` | Cards on list or board |
 | `get_card` | `GET /cards/{id}` | Card details |
-| `search_cards` | `GET /search` | Search cards by query (`board_ids: string[]` optional) |
-| `search_cards_in_board` | `GET /search` | Search cards within one board (`board_id: string`) |
+| `search_cards` | `GET /search` | Search cards by query (`board_ids` optional; ObjectId / shortLink / exact name resolved) |
+| `search_cards_in_board` | `GET /search` | Search cards within one board (`board_id` ObjectId / shortLink / exact name) |
 
 ### Write (require `confirm=true`)
 
