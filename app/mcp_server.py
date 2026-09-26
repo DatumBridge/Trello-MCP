@@ -126,7 +126,11 @@ def get_me(
     credentials_path: Optional[str] = _CREDS_PATH_FIELD,
     credentials_json: Optional[str] = _CREDS_JSON_FIELD,
 ) -> MemberResponse:
-    """Get the authenticated Trello member profile."""
+    """Get the authenticated Trello member profile.
+
+        Capabilities: trello.get_me
+Outputs: success
+        """
     logger.info("MCP: get_me")
     try:
         if not credentials_path and not credentials_json:
@@ -149,7 +153,11 @@ def list_boards(
     ),
     limit: int = Field(default=50, description="Max boards to return (1-1000)"),
 ) -> BoardListResponse:
-    """List boards for the authenticated member."""
+    """List boards for the authenticated member.
+
+        Capabilities: trello.list_boards
+Outputs: success
+        """
     logger.info("MCP: list_boards filter=%s limit=%s", filter_type, limit)
     try:
         if not credentials_path and not credentials_json:
@@ -168,7 +176,11 @@ def get_board(
     credentials_path: Optional[str] = _CREDS_PATH_FIELD,
     credentials_json: Optional[str] = _CREDS_JSON_FIELD,
 ) -> BoardResponse:
-    """Get a Trello board by ID."""
+    """Get a Trello board by ID.
+
+        Capabilities: trello.get_board
+Outputs: success
+        """
     logger.info("MCP: get_board board_id=%s", board_id)
     try:
         if not credentials_path and not credentials_json:
@@ -191,7 +203,11 @@ def list_lists(
         description="Filter: all or open",
     ),
 ) -> ListListResponse:
-    """List lists on a Trello board."""
+    """List lists on a Trello board.
+
+        Capabilities: trello.list_lists
+Outputs: success
+        """
     logger.info("MCP: list_lists board_id=%s", board_id)
     try:
         if not credentials_path and not credentials_json:
@@ -222,7 +238,11 @@ def list_cards(
     ),
     limit: int = Field(default=100, description="Max cards to return (1-1000)"),
 ) -> CardListResponse:
-    """List cards on a Trello list or board."""
+    """List cards on a Trello list or board.
+
+        Capabilities: trello.list_cards
+Outputs: success
+        """
     logger.info("MCP: list_cards list_id=%s board_id=%s", list_id, board_id)
     try:
         if not credentials_path and not credentials_json:
@@ -246,7 +266,11 @@ def get_card(
     credentials_path: Optional[str] = _CREDS_PATH_FIELD,
     credentials_json: Optional[str] = _CREDS_JSON_FIELD,
 ) -> CardResponse:
-    """Get a Trello card by ID."""
+    """Get a Trello card by ID.
+
+        Capabilities: trello.get_card
+Outputs: success
+        """
     logger.info("MCP: get_card card_id=%s", card_id)
     try:
         if not credentials_path and not credentials_json:
@@ -270,7 +294,11 @@ def search_cards(
     ),
     limit: int = Field(default=20, description="Max cards to return (1-1000)"),
 ) -> CardListResponse:
-    """Search Trello cards by query string across one or more boards (or all)."""
+    """Search Trello cards by query string across one or more boards (or all).
+
+        Capabilities: trello.search_cards
+Outputs: success
+        """
     logger.info("MCP: search_cards query=%s", query)
     try:
         if not credentials_path and not credentials_json:
@@ -303,7 +331,11 @@ def search_cards_in_board(
     (``boardId`` / ``board_id`` is a string, not a list).
 
     ``board_id`` should be the Trello ObjectId. Names/shortLinks are resolved when possible.
-    """
+    
+
+        Capabilities: trello.search_cards_in_board
+Outputs: success
+        """
     logger.info("MCP: search_cards_in_board board_id=%s query=%s", board_id, query)
     try:
         if not credentials_path and not credentials_json:
@@ -325,7 +357,7 @@ def create_card(
     name: str = Field(..., description="Card title"),
     credentials_path: Optional[str] = _CREDS_PATH_FIELD,
     credentials_json: Optional[str] = _CREDS_JSON_FIELD,
-    desc: str = Field(default="", description="Card description"),
+    desc: str = Field(default="", description="Card description", json_schema_extra={"x-datumbridge-encoding": "plain"}),
     due: Optional[str] = Field(
         default=None,
         description=(
@@ -346,7 +378,11 @@ def create_card(
         description="If true, return the request payload without calling Trello",
     ),
 ) -> ActionResponse:
-    """Create a card on a Trello list. Requires confirm=true."""
+    """Create a card on a Trello list. Requires confirm=true.
+
+        Capabilities: trello.create_card
+Outputs: success
+        """
     logger.info(
         "MCP: create_card list_id=%s dry_run=%s confirm=%s", list_id, dry_run, confirm
     )
@@ -395,7 +431,7 @@ def update_card(
     credentials_path: Optional[str] = _CREDS_PATH_FIELD,
     credentials_json: Optional[str] = _CREDS_JSON_FIELD,
     name: Optional[str] = Field(default=None, description="New card title"),
-    desc: Optional[str] = Field(default=None, description="New card description"),
+    desc: Optional[str] = Field(default=None, description="New card description", json_schema_extra={"x-datumbridge-encoding": "plain"}),
     due: Optional[str] = Field(
         default=None,
         description=(
@@ -416,7 +452,11 @@ def update_card(
         description="If true, return the request payload without calling Trello",
     ),
 ) -> ActionResponse:
-    """Update a Trello card. Requires confirm=true."""
+    """Update a Trello card. Requires confirm=true.
+
+        Capabilities: trello.update_card
+Outputs: success
+        """
     logger.info("MCP: update_card card_id=%s dry_run=%s confirm=%s", card_id, dry_run, confirm)
     try:
         if not credentials_path and not credentials_json:
@@ -471,7 +511,11 @@ def move_card(
         description="If true, return the request payload without calling Trello",
     ),
 ) -> ActionResponse:
-    """Move a card to another list. Requires confirm=true."""
+    """Move a card to another list. Requires confirm=true.
+
+        Capabilities: trello.move_card
+Outputs: success
+        """
     logger.info("MCP: move_card card_id=%s list_id=%s", card_id, list_id)
     try:
         if not credentials_path and not credentials_json:
@@ -520,7 +564,11 @@ def archive_card(
         description="If true, return the request payload without calling Trello",
     ),
 ) -> ActionResponse:
-    """Archive (close) a Trello card. Requires confirm=true."""
+    """Archive (close) a Trello card. Requires confirm=true.
+
+        Capabilities: trello.archive_card
+Outputs: success
+        """
     logger.info("MCP: archive_card card_id=%s", card_id)
     try:
         if not credentials_path and not credentials_json:
@@ -552,7 +600,7 @@ def archive_card(
 @mcp.tool()
 def add_comment(
     card_id: str = Field(..., description="Card ID to comment on"),
-    text: str = Field(..., description="Comment text"),
+    text: str = Field(..., description="Comment text", json_schema_extra={"x-datumbridge-encoding": "plain"}),
     credentials_path: Optional[str] = _CREDS_PATH_FIELD,
     credentials_json: Optional[str] = _CREDS_JSON_FIELD,
     confirm: bool = Field(
@@ -564,7 +612,11 @@ def add_comment(
         description="If true, return the request payload without calling Trello",
     ),
 ) -> ActionResponse:
-    """Add a comment to a Trello card. Requires confirm=true."""
+    """Add a comment to a Trello card. Requires confirm=true.
+
+        Capabilities: trello.add_comment
+Outputs: success
+        """
     logger.info("MCP: add_comment card_id=%s", card_id)
     try:
         if not credentials_path and not credentials_json:
@@ -613,7 +665,11 @@ def create_list(
         description="If true, return the request payload without calling Trello",
     ),
 ) -> ActionResponse:
-    """Create a list on a Trello board. Requires confirm=true."""
+    """Create a list on a Trello board. Requires confirm=true.
+
+        Capabilities: trello.create_list
+Outputs: success
+        """
     logger.info("MCP: create_list board_id=%s name=%s", board_id, name)
     try:
         if not credentials_path and not credentials_json:
