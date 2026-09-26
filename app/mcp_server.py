@@ -39,6 +39,7 @@ from app.schemas.mcp_models import (
     MemberResponse,
 )
 from app.services.trello_service import TrelloService
+from app.capability_bind import bind_declared_capabilities
 
 logger = logging.getLogger(__name__)
 
@@ -698,6 +699,9 @@ Outputs: success
 
 
 from app.oauth_routes import oauth_callback, oauth_info_route, oauth_start_route
+
+
+bind_declared_capabilities(mcp)
 
 _base_app = mcp.http_app()
 
