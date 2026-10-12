@@ -4,7 +4,7 @@ Trello MCP Server
 Exposes Trello board, list, and card management via Model Context Protocol (MCP).
 Uses fastmcp for MCP server implementation.
 
-Tools: get_me, list_boards, get_board, list_lists, list_cards, get_card,
+Tools: get_me, list_workspaces, list_boards, get_board, list_lists, list_cards, get_card,
        search_cards, search_cards_in_board, create_card, update_card, move_card,
        archive_card, add_comment, create_list
 
@@ -37,6 +37,7 @@ from app.schemas.mcp_models import (
     CardResponse,
     ListListResponse,
     MemberResponse,
+    WorkspaceListResponse,
 )
 from app.services.trello_service import TrelloService
 from app.capability_bind import bind_declared_capabilities
@@ -48,8 +49,13 @@ mcp = FastMCP(
     instructions="""
     Trello MCP Server provides tools for:
     - Reading the authenticated member profile
+    - Listing workspaces, then boards in a chosen workspace
     - Listing and fetching boards, lists, and cards
-    - Searching cards across boards or within a single board
+    - Searching cards in one workspace, across boards, or within a single board
+
+    Pass workspace_id (Trello organization id from list_workspaces) to list_boards
+    and search_cards. Without it, list_boards reads every workspace. Do not assume
+    the first workspace is the only one. Each board includes idOrganization.
     - Creating and updating cards, lists, and comments
 
     Credentials must be passed as input: credentials_path or credentials_json
@@ -145,9 +151,43 @@ Outputs: success
 
 
 @mcp.tool()
+def list_workspaces(
+    credentials_path: Optional[str] = _CREDS_PATH_FIELD,
+    credentials_json: Optional[str] = _CREDS_JSON_FIELD,
+) -> WorkspaceListResponse:
+    """List Trello workspaces (organizations) for the authenticated member.
+
+    Use a workspace id as workspace_id on list_boards and search_cards.
+
+        Capabilities: trello.list_workspaces
+Outputs: success
+        """
+    logger.info("MCP: list_workspaces")
+    try:
+        if not credentials_path and not credentials_json:
+            return WorkspaceListResponse(success=False, error=_creds_required_error())
+        service = _get_trello_service(credentials_path, credentials_json)
+        workspaces = service.list_workspaces()
+        return WorkspaceListResponse(
+            success=True, workspaces=workspaces, total_count=len(workspaces)
+        )
+    except TrelloError as e:
+        logger.error("list_workspaces failed: %s", e.error_code)
+        return WorkspaceListResponse(success=False, error=_error_response(e))
+
+
+@mcp.tool()
 def list_boards(
     credentials_path: Optional[str] = _CREDS_PATH_FIELD,
     credentials_json: Optional[str] = _CREDS_JSON_FIELD,
+    workspace_id: Optional[str] = Field(
+        default=None,
+        description=(
+            "Trello workspace id (organization id from list_workspaces). "
+            "When set, only that workspace's boards are returned. "
+            "When omitted, boards are read from every workspace, not the first one."
+        ),
+    ),
     filter_type: str = Field(
         default="open",
         description="Filter: all, closed, members, open, organization, pinned, public, starred, unpinned",
@@ -156,16 +196,32 @@ def list_boards(
 ) -> BoardListResponse:
     """List boards for the authenticated member.
 
+    Each board includes idOrganization, the workspace it belongs to.
+    Pass workspace_id to read one workspace. Omitting it reads every workspace.
+
         Capabilities: trello.list_boards
 Outputs: success
         """
-    logger.info("MCP: list_boards filter=%s limit=%s", filter_type, limit)
+    logger.info(
+        "MCP: list_boards workspace_id=%s filter=%s limit=%s",
+        workspace_id,
+        filter_type,
+        limit,
+    )
     try:
         if not credentials_path and not credentials_json:
             return BoardListResponse(success=False, error=_creds_required_error())
         service = _get_trello_service(credentials_path, credentials_json)
-        boards = service.list_boards(filter_type=filter_type, limit=limit)
-        return BoardListResponse(success=True, boards=boards, total_count=len(boards))
+        org_id = (workspace_id or "").strip() or None
+        boards = service.list_boards(
+            workspace_id=org_id, filter_type=filter_type, limit=limit
+        )
+        return BoardListResponse(
+            success=True,
+            boards=boards,
+            total_count=len(boards),
+            workspace_id=org_id,
+        )
     except TrelloError as e:
         logger.error("list_boards failed: %s", e.error_code)
         return BoardListResponse(success=False, error=_error_response(e))
@@ -289,23 +345,37 @@ def search_cards(
     query: str = Field(..., description="Search query string"),
     credentials_path: Optional[str] = _CREDS_PATH_FIELD,
     credentials_json: Optional[str] = _CREDS_JSON_FIELD,
+    workspace_id: Optional[str] = Field(
+        default=None,
+        description=(
+            "Trello workspace id (organization id from list_workspaces). "
+            "Scopes the search to that workspace when board_ids is omitted."
+        ),
+    ),
     board_ids: Optional[List[str]] = Field(
         default=None,
         description="Optional list of board IDs to scope search",
     ),
     limit: int = Field(default=20, description="Max cards to return (1-1000)"),
 ) -> CardListResponse:
-    """Search Trello cards by query string across one or more boards (or all).
+    """Search Trello cards by query string across one or more boards (or one workspace).
+
+    Pass workspace_id so the search is not limited to the first workspace.
 
         Capabilities: trello.search_cards
 Outputs: success
         """
-    logger.info("MCP: search_cards query=%s", query)
+    logger.info("MCP: search_cards query=%s workspace_id=%s", query, workspace_id)
     try:
         if not credentials_path and not credentials_json:
             return CardListResponse(success=False, error=_creds_required_error())
         service = _get_trello_service(credentials_path, credentials_json)
-        cards = service.search_cards(query, board_ids=board_ids, limit=limit)
+        cards = service.search_cards(
+            query,
+            board_ids=board_ids,
+            workspace_id=(workspace_id or "").strip() or None,
+            limit=limit,
+        )
         return CardListResponse(success=True, cards=cards, total_count=len(cards))
     except TrelloError as e:
         logger.error("search_cards failed: %s", e.error_code)
@@ -324,6 +394,13 @@ def search_cards_in_board(
     query: str = Field(..., description="Search query string"),
     credentials_path: Optional[str] = _CREDS_PATH_FIELD,
     credentials_json: Optional[str] = _CREDS_JSON_FIELD,
+    workspace_id: Optional[str] = Field(
+        default=None,
+        description=(
+            "Trello workspace id. Used when board_id is a name or shortLink "
+            "so the name is resolved inside that workspace."
+        ),
+    ),
     limit: int = Field(default=20, description="Max cards to return (1-1000)"),
 ) -> CardListResponse:
     """Search Trello cards within a single board.
@@ -345,7 +422,12 @@ Outputs: success
         if not bid:
             raise TrelloValidationError("board_id is required")
         service = _get_trello_service(credentials_path, credentials_json)
-        cards = service.search_cards(query, board_ids=[bid], limit=limit)
+        cards = service.search_cards(
+            query,
+            board_ids=[bid],
+            workspace_id=(workspace_id or "").strip() or None,
+            limit=limit,
+        )
         return CardListResponse(success=True, cards=cards, total_count=len(cards))
     except TrelloError as e:
         logger.error("search_cards_in_board failed: %s", e.error_code)

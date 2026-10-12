@@ -27,7 +27,8 @@ DEFAULT_TIMEOUT_SEC = 30
 DEFAULT_CARD_FIELDS = (
     "id,name,desc,closed,due,dueComplete,idList,idBoard,url,labels,pos"
 )
-DEFAULT_BOARD_FIELDS = "id,name,desc,closed,url,shortUrl,shortLink,prefs"
+DEFAULT_BOARD_FIELDS = "id,name,desc,closed,url,shortUrl,shortLink,idOrganization,prefs"
+DEFAULT_WORKSPACE_FIELDS = "id,name,displayName,url"
 DEFAULT_LIST_FIELDS = "id,name,closed,pos"
 DEFAULT_MEMBER_FIELDS = "id,username,fullName,url,email"
 
@@ -266,14 +267,63 @@ class TrelloService:
             params={"fields": DEFAULT_MEMBER_FIELDS},
         )
 
+    def list_workspaces(self) -> List[Dict[str, Any]]:
+        """Workspaces the token can see. Trello calls these organizations."""
+        workspaces = self._request(
+            "GET",
+            "/members/me/organizations",
+            params={"fields": DEFAULT_WORKSPACE_FIELDS},
+        )
+        return workspaces if isinstance(workspaces, list) else []
+
     def list_boards(
         self,
         *,
+        workspace_id: Optional[str] = None,
         filter_type: str = "open",
         limit: int = 50,
     ) -> List[Dict[str, Any]]:
         if limit < 1 or limit > 1000:
             raise TrelloValidationError("limit must be between 1 and 1000")
+        org_id = (workspace_id or "").strip()
+        if org_id:
+            return self._trim_boards(
+                self._boards_in_workspace(org_id, filter_type=filter_type),
+                limit,
+            )
+        # /members/me/boards returns only the first workspace. Walk every workspace.
+        seen: set[str] = set()
+        merged: List[Dict[str, Any]] = []
+        for workspace in self.list_workspaces():
+            wid = str(workspace.get("id") or "").strip() if isinstance(workspace, dict) else ""
+            if not wid:
+                continue
+            for board in self._boards_in_workspace(wid, filter_type=filter_type):
+                self._append_board(merged, seen, board)
+                if len(merged) >= limit:
+                    return merged
+        for board in self._member_boards(filter_type=filter_type, limit=limit):
+            if isinstance(board, dict) and str(board.get("idOrganization") or "").strip():
+                continue
+            self._append_board(merged, seen, board)
+            if len(merged) >= limit:
+                break
+        return merged
+
+    def _boards_in_workspace(self, workspace_id: str, *, filter_type: str) -> List[Dict[str, Any]]:
+        boards = self._request(
+            "GET",
+            f"/organizations/{workspace_id}/boards",
+            params={"fields": DEFAULT_BOARD_FIELDS, "filter": filter_type},
+        )
+        if not isinstance(boards, list):
+            return []
+        for board in boards:
+            if isinstance(board, dict) and not str(board.get("idOrganization") or "").strip():
+                board["idOrganization"] = workspace_id
+        return boards
+
+    def _member_boards(self, *, filter_type: str, limit: int) -> List[Dict[str, Any]]:
         boards = self._request(
             "GET",
             "/members/me/boards",
@@ -285,6 +335,24 @@ class TrelloService:
         )
         return boards if isinstance(boards, list) else []
 
+    @staticmethod
+    def _append_board(
+        merged: List[Dict[str, Any]],
+        seen: set[str],
+        board: Any,
+    ) -> None:
+        if not isinstance(board, dict):
+            return
+        bid = str(board.get("id") or "").strip()
+        if not bid or bid in seen:
+            return
+        seen.add(bid)
+        merged.append(board)
+
+    @staticmethod
+    def _trim_boards(boards: List[Dict[str, Any]], limit: int) -> List[Dict[str, Any]]:
+        return boards[:limit]
+
     def get_board(self, board_id: str) -> Dict[str, Any]:
         if not board_id.strip():
             raise TrelloValidationError("board_id is required")
@@ -294,7 +362,7 @@ class TrelloService:
             params={"fields": DEFAULT_BOARD_FIELDS},
         )
 
-    def resolve_board_id(self, board_ref: str) -> str:
+    def resolve_board_id(self, board_ref: str, *, workspace_id: Optional[str] = None) -> str:
         """Resolve a board ObjectId, shortLink, or exact name to a board ObjectId.
 
         ``/search`` ``idBoards`` requires ObjectIds — names like ``sample`` cause
@@ -316,7 +384,7 @@ class TrelloService:
         except TrelloError:
             pass
 
-        boards = self.list_boards(limit=1000)
+        boards = self.list_boards(workspace_id=workspace_id, limit=1000)
         ref_lower = ref.lower()
         name_matches: List[Dict[str, Any]] = []
         for board in boards:
@@ -342,8 +410,9 @@ class TrelloService:
             )
         raise TrelloValidationError(
             f"board_id {ref!r} is not a valid Trello ObjectId, shortLink, or "
-            "exact board name accessible to this token. Use list_boards and bind "
-            "the board's id field (24-char hex), not a display name placeholder."
+            "exact board name accessible to this token. Pass workspace_id from "
+            "list_workspaces, then use list_boards and bind the board's id field "
+            "(24-char hex), not a display name placeholder."
         )
 
     def list_lists(
@@ -541,6 +610,7 @@ class TrelloService:
         query: str,
         *,
         board_ids: Optional[List[str]] = None,
+        workspace_id: Optional[str] = None,
         limit: int = 20,
     ) -> List[Dict[str, Any]]:
         if not query.strip():
@@ -554,6 +624,7 @@ class TrelloService:
             "cards_limit": limit,
             "card_fields": DEFAULT_CARD_FIELDS,
         }
+        org_id = (workspace_id or "").strip()
         if board_ids:
             resolved: List[str] = []
             for raw in board_ids:
@@ -562,9 +633,11 @@ class TrelloService:
                 text = str(raw).strip()
                 if not text:
                     continue
-                resolved.append(self.resolve_board_id(text))
+                resolved.append(self.resolve_board_id(text, workspace_id=org_id or None))
             if resolved:
                 params["idBoards"] = ",".join(resolved)
+        elif org_id:
+            params["idOrganizations"] = org_id
 
         result = self._request("GET", "/search", params=params)
         cards = result.get("cards", []) if isinstance(result, dict) else []

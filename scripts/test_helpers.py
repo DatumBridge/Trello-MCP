@@ -254,7 +254,7 @@ class TestSearchCardsInBoardTool(unittest.TestCase):
         self.assertTrue(result.success)
         self.assertEqual(result.total_count, 1)
         mock_svc.search_cards.assert_called_once_with(
-            "login", board_ids=["sample"], limit=5
+            "login", board_ids=["sample"], workspace_id=None, limit=5
         )
 
     @patch("app.mcp_server._get_trello_service")
@@ -273,7 +273,7 @@ class TestSearchCardsInBoardTool(unittest.TestCase):
         )
         self.assertTrue(result.success)
         mock_svc.search_cards.assert_called_once_with(
-            "login", board_ids=["sample"], limit=20
+            "login", board_ids=["sample"], workspace_id=None, limit=20
         )
 
     @patch("app.mcp_server._get_trello_service")
@@ -288,6 +288,43 @@ class TestSearchCardsInBoardTool(unittest.TestCase):
         self.assertFalse(result.success)
         self.assertEqual(result.error["error_code"], "VALIDATION_ERROR")
         mock_get_service.assert_not_called()
+
+
+class TestWorkspaceBoards(unittest.TestCase):
+    def _service(self) -> TrelloService:
+        return TrelloService(credentials_json=json.dumps({"api_key": "k", "token": "t"}))
+
+    def test_list_boards_uses_the_requested_workspace(self):
+        service = self._service()
+        with patch.object(service, "_request", return_value=[{"id": "b1", "name": "Ops"}]) as req:
+            boards = service.list_boards(workspace_id="ws-2")
+        self.assertEqual(boards[0]["id"], "b1")
+        self.assertEqual(boards[0]["idOrganization"], "ws-2")
+        self.assertEqual(req.call_args.args[1], "/organizations/ws-2/boards")
+
+    def test_list_boards_reads_every_workspace(self):
+        service = self._service()
+
+        def fake_request(method, path, **kwargs):
+            if path == "/members/me/organizations":
+                return [{"id": "ws-1", "name": "first"}, {"id": "ws-2", "name": "second"}]
+            if path == "/organizations/ws-1/boards":
+                return [{"id": "b1", "name": "First board", "idOrganization": "ws-1"}]
+            if path == "/organizations/ws-2/boards":
+                return [{"id": "b2", "name": "Second board", "idOrganization": "ws-2"}]
+            if path == "/members/me/boards":
+                return [{"id": "b1", "name": "First board", "idOrganization": "ws-1"}]
+            raise AssertionError(path)
+
+        with patch.object(service, "_request", side_effect=fake_request):
+            boards = service.list_boards()
+        self.assertEqual([b["id"] for b in boards], ["b1", "b2"])
+
+    def test_search_cards_scopes_workspace_when_no_board(self):
+        service = self._service()
+        with patch.object(service, "_request", return_value={"cards": []}) as req:
+            service.search_cards("login", workspace_id="ws-2", limit=5)
+        self.assertEqual(req.call_args.kwargs["params"]["idOrganizations"], "ws-2")
 
 
 if __name__ == "__main__":

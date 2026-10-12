@@ -18,8 +18,15 @@ build_args() {
     get_me)
       echo '{}'
       ;;
+    list_workspaces)
+      echo '{}'
+      ;;
     list_boards)
-      echo '{"filter_type":"open","limit":20}'
+      if [[ -n "${WORKSPACE_ID:-}" ]]; then
+        echo "{\"workspace_id\":\"$WORKSPACE_ID\",\"filter_type\":\"open\",\"limit\":20}"
+      else
+        echo '{"filter_type":"open","limit":20}'
+      fi
       ;;
     get_board)
       echo "{\"board_id\":\"${BOARD_ID:?set BOARD_ID}\"}"
@@ -38,7 +45,11 @@ build_args() {
       echo "{\"card_id\":\"${CARD_ID:?set CARD_ID}\"}"
       ;;
     search_cards)
-      echo "{\"query\":\"${QUERY:?set QUERY}\"}"
+      if [[ -n "${WORKSPACE_ID:-}" ]]; then
+        echo "{\"query\":\"${QUERY:?set QUERY}\",\"workspace_id\":\"$WORKSPACE_ID\"}"
+      else
+        echo "{\"query\":\"${QUERY:?set QUERY}\"}"
+      fi
       ;;
     search_cards_in_board)
       echo "{\"board_id\":\"${BOARD_ID:?set BOARD_ID}\",\"query\":\"${QUERY:?set QUERY}\"}"

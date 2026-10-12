@@ -10,6 +10,7 @@ The gateway injects `credentials_json` from the connected account. Do not invent
 |---|---|---|
 | `board_id` | yes | Trello board ObjectId (24-char hex from list_boards/get_board .id). Also accepts shortLink or exact board name (resolved to ObjectId). |
 | `query` | yes | Search query string |
+| `workspace_id` | no | Trello workspace id. Used when board_id is a name or shortLink so the name is resolved inside that workspace. |
 | `limit` | no | Max cards to return (1-1000) |
 
 ## Cases

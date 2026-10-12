@@ -25,12 +25,13 @@ The MCP Server must:
 | Tool | Trello API | Description |
 |------|------------|-------------|
 | `get_me` | `GET /members/me` | Authenticated member profile |
-| `list_boards` | `GET /members/me/boards` | List member boards |
+| `list_workspaces` | `GET /members/me/organizations` | Workspaces (Trello organizations) and their ids |
+| `list_boards` | `GET /organizations/{workspace_id}/boards`, or every workspace when `workspace_id` is omitted | Boards in the chosen workspace. `GET /members/me/boards` is only used for boards that belong to no workspace, because that call returns the first workspace only. |
 | `get_board` | `GET /boards/{id}` | Board details |
 | `list_lists` | `GET /boards/{id}/lists` | Lists on a board |
 | `list_cards` | `GET /lists/{id}/cards` or `/boards/{id}/cards` | Cards on list or board |
 | `get_card` | `GET /cards/{id}` | Card details |
-| `search_cards` | `GET /search` | Search cards by query (`board_ids` optional; ObjectId / shortLink / exact name resolved) |
+| `search_cards` | `GET /search` | Search cards by query. `workspace_id` sets `idOrganizations` when `board_ids` is omitted. `board_ids` still accepts ObjectId / shortLink / exact name. |
 | `search_cards_in_board` | `GET /search` | Search cards within one board (`board_id` ObjectId / shortLink / exact name) |
 
 ### Write (require `confirm=true`)

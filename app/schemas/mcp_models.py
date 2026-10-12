@@ -14,9 +14,15 @@ class MemberResponse(BaseToolResponse):
     member: Optional[Dict[str, Any]] = None
 
 
+class WorkspaceListResponse(BaseToolResponse):
+    workspaces: List[Dict[str, Any]] = []
+    total_count: int = 0
+
+
 class BoardListResponse(BaseToolResponse):
     boards: List[Dict[str, Any]] = []
     total_count: int = 0
+    workspace_id: Optional[str] = None
 
 
 class BoardResponse(BaseToolResponse):

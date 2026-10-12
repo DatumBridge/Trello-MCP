@@ -1,3 +1,16 @@
+## 2026-10-12
+
+### Added
+
+- `list_workspaces` returns Trello workspace ids (`GET /members/me/organizations`).
+
+### Changed
+
+- `list_boards` accepts `workspace_id` and reads `GET /organizations/{workspace_id}/boards`. Each board includes `idOrganization`. When `workspace_id` is omitted, boards are collected from every workspace instead of the first workspace returned by `GET /members/me/boards`.
+- `search_cards` accepts `workspace_id` and sends it as `idOrganizations` when no board list is given. `search_cards_in_board` uses `workspace_id` when resolving a board name or shortLink.
+
+Redeploy `trello-mcp` and publish the tool again so the registry picks up the new arguments.
+
 ## 2026-07-24
 
 ### Changed

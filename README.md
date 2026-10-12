@@ -9,12 +9,15 @@ DatumBridge **tool-server** that exposes Trello board, list, and card management
 | Area | Tools |
 |------|--------|
 | Profile | `get_me` |
-| Boards | `list_boards`, `get_board` |
+| Workspaces | `list_workspaces` |
+| Boards | `list_boards` (`workspace_id`), `get_board` |
 | Lists | `list_lists`, `create_list` |
-| Cards | `list_cards`, `get_card`, `search_cards`, `search_cards_in_board`, `create_card`, `update_card`, `move_card`, `archive_card` |
+| Cards | `list_cards`, `get_card`, `search_cards` (`workspace_id`), `search_cards_in_board`, `create_card`, `update_card`, `move_card`, `archive_card` |
 | Comments | `add_comment` |
 
 Every tool requires **`credentials_path`** or **`credentials_json`** with `api_key` and `token`.
+
+`list_workspaces` returns workspace ids. Pass one as **`workspace_id`** to `list_boards` or `search_cards`. Each board includes `idOrganization`. Omitting `workspace_id` on `list_boards` reads every workspace. It does not stop at the first workspace.
 
 Side-effect tools require **`confirm=true`**. Use **`dry_run=true`** to preview without calling Trello.
 

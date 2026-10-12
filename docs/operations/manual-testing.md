@@ -17,6 +17,8 @@ python scripts/test_helpers.py -v
 export TRELLO_CREDENTIALS_FILE=./token.json
 
 ./scripts/manual_mcp_call.sh get_me
+./scripts/manual_mcp_call.sh list_workspaces
+WORKSPACE_ID=<workspace id> ./scripts/manual_mcp_call.sh list_boards
 ./scripts/manual_mcp_call.sh list_boards
 BOARD_ID=<id> ./scripts/manual_mcp_call.sh list_lists
 BOARD_ID=<id> QUERY="keyword" ./scripts/manual_mcp_call.sh search_cards_in_board
@@ -28,7 +30,7 @@ LIST_ID=<id> NAME="Test" CONFIRM=true DRY_RUN=false ./scripts/manual_mcp_call.sh
 
 1. Open `http://localhost:8000/test`
 2. Paste credentials JSON
-3. Call `get_me`, then `list_boards`
+3. Call `get_me`, then `list_workspaces`, then `list_boards` with that `workspace_id`
 4. Use dry run before confirm on write tools
 
 ## Health check
